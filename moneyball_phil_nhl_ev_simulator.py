@@ -255,17 +255,18 @@ with tab_team:
     st.subheader("Team Bets — Moneyline · Puck Line · Totals")
 
     colL, colR = st.columns(2)
-    with colL:
-        home_team = st.text_input("Home Team", value="")
-        away_team = st.text_input("Away Team", value="")
-        xgf_home = st.number_input("Home xGF (per game)", value=0.0, step=0.1, min_value=0.0)
-        xga_home = st.number_input("Home xGA (per game)", value=0.0, step=0.1, min_value=0.0)
-        xgf_away = st.number_input("Away xGF (per game)", value=0.0, step=0.1, min_value=0.0)
-        xga_away = st.number_input("Away xGA (per game)", value=0.0, step=0.1, min_value=0.0)
-        sims = 20000  # hidden default simulation count for Poisson model
+    colL, colR = st.columns(2)
 
+with colL:
+    home_team = st.text_input("Home Team", value="")
+    away_team = st.text_input("Away Team", value="")
+    xgf_home = st.number_input("Home xGF (per game)", value=0.0, step=0.1, min_value=0.0)
+    xga_home = st.number_input("Home xGA (per game)", value=0.0, step=0.1, min_value=0.0)
+    xgf_away = st.number_input("Away xGF (per game)", value=0.0, step=0.1, min_value=0.0)
+    xga_away = st.number_input("Away xGA (per game)", value=0.0, step=0.1, min_value=0.0)
+    sims = 20000  # hidden default simulation count for Poisson model
 
-   with colR:
+with colR:
     st.markdown("**Sportsbook Lines** (enter your current prices)")
 
     ml_home = st.number_input(f"Moneyline — {home_team}", value=-135, step=1)
@@ -292,6 +293,7 @@ with tab_team:
     total_line = st.number_input("Total (O/U) line", value=6.5, step=0.5)
     ou_over = st.number_input("Over Odds", value=+105, step=1)
     ou_under = st.number_input("Under Odds", value=-125, step=1)
+
 
 
 
