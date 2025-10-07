@@ -256,42 +256,42 @@ with tab_team:
 
     colL, colR = st.columns(2)
 
-with colL:
-    home_team = st.text_input("Home Team", value="")
-    away_team = st.text_input("Away Team", value="")
-    xgf_home = st.number_input("Home xGF (per game)", value=0.0, step=0.1, min_value=0.0)
-    xga_home = st.number_input("Home xGA (per game)", value=0.0, step=0.1, min_value=0.0)
-    xgf_away = st.number_input("Away xGF (per game)", value=0.0, step=0.1, min_value=0.0)
-    xga_away = st.number_input("Away xGA (per game)", value=0.0, step=0.1, min_value=0.0)
-    sims = 20000  # hidden default simulation count for Poisson model
+    with colL:
+        home_team = st.text_input("Home Team", value="")
+        away_team = st.text_input("Away Team", value="")
+        xgf_home = st.number_input("Home xGF (per game)", value=0.0, step=0.1, min_value=0.0)
+        xga_home = st.number_input("Home xGA (per game)", value=0.0, step=0.1, min_value=0.0)
+        xgf_away = st.number_input("Away xGF (per game)", value=0.0, step=0.1, min_value=0.0)
+        xga_away = st.number_input("Away xGA (per game)", value=0.0, step=0.1, min_value=0.0)
+        sims = 20000  # hidden default simulation count
 
-with colR:
-    st.markdown("**Sportsbook Lines** (enter your current prices)")
+    with colR:
+        st.markdown("**Sportsbook Lines** (enter your current prices)")
 
-    ml_home = st.number_input(f"Moneyline — {home_team}", value=0, step=1)
-    ml_away = st.number_input(f"Moneyline — {away_team}", value=0, step=1)
+        ml_home = st.number_input(f"Moneyline — {home_team}", value=0, step=1)
+        ml_away = st.number_input(f"Moneyline — {away_team}", value=0, step=1)
 
-    # 🏒 Dynamic Puck Line favorite selection
-    favorite_team = st.selectbox(
-        "Which team is the favorite for the puck line?",
-        options=[home_team, away_team],
-        index=0,
-        help="This determines which side gets -1.5 and which gets +1.5."
-    )
+        favorite_team = st.selectbox(
+            "Which team is the favorite for the puck line?",
+            options=[home_team, away_team],
+            index=0,
+            help="This determines which side gets -1.5 and which gets +1.5."
+        )
 
-    if favorite_team == home_team:
-        pl_fav_label = f"Puck Line {home_team} -1.5 (odds)"
-        pl_dog_label = f"Puck Line {away_team} +1.5 (odds)"
-    else:
-        pl_fav_label = f"Puck Line {away_team} -1.5 (odds)"
-        pl_dog_label = f"Puck Line {home_team} +1.5 (odds)"
+        if favorite_team == home_team:
+            pl_fav_label = f"Puck Line {home_team} -1.5 (odds)"
+            pl_dog_label = f"Puck Line {away_team} +1.5 (odds)"
+        else:
+            pl_fav_label = f"Puck Line {away_team} -1.5 (odds)"
+            pl_dog_label = f"Puck Line {home_team} +1.5 (odds)"
 
-    pl_fav_odds = st.number_input(pl_fav_label, value=0, step=1)
-    pl_dog_odds = st.number_input(pl_dog_label, value=0, step=1)
+        pl_fav_odds = st.number_input(pl_fav_label, value=0, step=1)
+        pl_dog_odds = st.number_input(pl_dog_label, value=0, step=1)
 
-    total_line = st.number_input("Total (O/U) line", value=0.0, step=0.5)
-    ou_over = st.number_input("Over Odds", value=0, step=1)
-    ou_under = st.number_input("Under Odds", value=0, step=1)
+        total_line = st.number_input("Total (O/U) line", value=0.0, step=0.5)
+        ou_over = st.number_input("Over Odds", value=0, step=1)
+        ou_under = st.number_input("Under Odds", value=0, step=1)
+
 
 
 
