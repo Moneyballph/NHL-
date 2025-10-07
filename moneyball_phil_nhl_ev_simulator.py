@@ -254,8 +254,7 @@ tab_team, tab_player = st.tabs(["Team Bets", "Player Props"])
 with tab_team:
     st.subheader("Team Bets — Moneyline · Puck Line · Totals")
 
-    colL, colR = st.columns(2)
-    colL, colR = st.columns(2)
+ colL, colR = st.columns(2)
 
 with colL:
     home_team = st.text_input("Home Team", value="")
@@ -269,8 +268,8 @@ with colL:
 with colR:
     st.markdown("**Sportsbook Lines** (enter your current prices)")
 
-    ml_home = st.number_input(f"Moneyline — {home_team}", value=-135, step=1)
-    ml_away = st.number_input(f"Moneyline — {away_team}", value=+115, step=1)
+    ml_home = st.number_input(f"Moneyline — {home_team}", value=0, step=1)
+    ml_away = st.number_input(f"Moneyline — {away_team}", value=0, step=1)
 
     # 🏒 Dynamic Puck Line favorite selection
     favorite_team = st.selectbox(
@@ -287,12 +286,13 @@ with colR:
         pl_fav_label = f"Puck Line {away_team} -1.5 (odds)"
         pl_dog_label = f"Puck Line {home_team} +1.5 (odds)"
 
-    pl_fav_odds = st.number_input(pl_fav_label, value=+150, step=1)
-    pl_dog_odds = st.number_input(pl_dog_label, value=-170, step=1)
+    pl_fav_odds = st.number_input(pl_fav_label, value=0, step=1)
+    pl_dog_odds = st.number_input(pl_dog_label, value=0, step=1)
 
-    total_line = st.number_input("Total (O/U) line", value=6.5, step=0.5)
-    ou_over = st.number_input("Over Odds", value=+105, step=1)
-    ou_under = st.number_input("Under Odds", value=-125, step=1)
+    total_line = st.number_input("Total (O/U) line", value=0.0, step=0.5)
+    ou_over = st.number_input("Over Odds", value=0, step=1)
+    ou_under = st.number_input("Under Odds", value=0, step=1)
+
 
 
 
