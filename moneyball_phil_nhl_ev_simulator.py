@@ -262,7 +262,8 @@ with tab_team:
         xga_home = st.number_input("Home xGA (per game)", value=0.0, step=0.1, min_value=0.0)
         xgf_away = st.number_input("Away xGF (per game)", value=0.0, step=0.1, min_value=0.0)
         xga_away = st.number_input("Away xGA (per game)", value=0.0, step=0.1, min_value=0.0)
-        sims = st.number_input("Simulations (Poisson)", value=20000, step=1000, min_value=5000)
+        sims = 20000  # hidden default simulation count for Poisson model
+
 
     with colR:
         st.markdown("**Sportsbook Lines** (enter your current prices)")
