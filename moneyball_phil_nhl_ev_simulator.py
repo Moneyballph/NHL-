@@ -266,31 +266,43 @@ with tab_team:
         sims = 20000  # hidden default simulation count
 
     with colR:
-        st.markdown("**Sportsbook Lines** (enter your current prices)")
+    st.markdown("**Sportsbook Lines** (enter your current prices)")
 
-        ml_home = st.number_input(f"Moneyline — {home_team}", value=0, step=1)
-        ml_away = st.number_input(f"Moneyline — {away_team}", value=0, step=1)
+    ml_home = st.number_input(
+        f"Moneyline — {home_team if home_team else 'Home Team'}",
+        value=0,
+        step=1,
+        key="ml_home"
+    )
+    ml_away = st.number_input(
+        f"Moneyline — {away_team if away_team else 'Away Team'}",
+        value=0,
+        step=1,
+        key="ml_away"
+    )
 
-        favorite_team = st.selectbox(
-            "Which team is the favorite for the puck line?",
-            options=[home_team, away_team],
-            index=0,
-            help="This determines which side gets -1.5 and which gets +1.5."
-        )
+    # 🏒 Dynamic puck line favorite selection
+    favorite_team = st.selectbox(
+        "Which team is the favorite for the puck line?",
+        options=[home_team, away_team],
+        index=0,
+        help="This determines which side gets -1.5 and which gets +1.5.",
+        key="favorite_select"
+    )
 
-        if favorite_team == home_team:
-            pl_fav_label = f"Puck Line {home_team} -1.5 (odds)"
-            pl_dog_label = f"Puck Line {away_team} +1.5 (odds)"
-        else:
-            pl_fav_label = f"Puck Line {away_team} -1.5 (odds)"
-            pl_dog_label = f"Puck Line {home_team} +1.5 (odds)"
+    if favorite_team == home_team:
+        pl_fav_label = f"Puck Line {home_team if home_team else 'Home'} -1.5 (odds)"
+        pl_dog_label = f"Puck Line {away_team if away_team else 'Away'} +1.5 (odds)"
+    else:
+        pl_fav_label = f"Puck Line {away_team if away_team else 'Away'} -1.5 (odds)"
+        pl_dog_label = f"Puck Line {home_team if home_team else 'Home'} +1.5 (odds)"
 
-        pl_fav_odds = st.number_input(pl_fav_label, value=0, step=1)
-        pl_dog_odds = st.number_input(pl_dog_label, value=0, step=1)
+    pl_fav_odds = st.number_input(pl_fav_label, value=0, step=1, key="pl_fav")
+    pl_dog_odds = st.number_input(pl_dog_label, value=0, step=1, key="pl_dog")
 
-        total_line = st.number_input("Total (O/U) line", value=0.0, step=0.5)
-        ou_over = st.number_input("Over Odds", value=0, step=1)
-        ou_under = st.number_input("Under Odds", value=0, step=1)
+    total_line = st.number_input("Total (O/U) line", value=0.0, step=0.5, key="total_line")
+    ou_over = st.number_input("Over Odds", value=0, step=1, key="over_odds")
+    ou_under = st.number_input("Under Odds", value=0, step=1, key="under_odds")
 
 
 
