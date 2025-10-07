@@ -362,15 +362,24 @@ with tab_player:
         odds_under = st.number_input("Under Odds", value=0, step=1, key="pp_under_odds")
 
     run_player = st.button("🔮 Compute Player Prop", key="pp_run")
-    if run_player:
-        base_rate = weighted_rate(season_avg, recent_avg, weight_recent)
-        adj_rate = defense_adjust(base_rate, opp_allowed, league_avg if league_avg > 0 else None)
+  if run_player:
+    base_rate = weighted_rate(season_avg, recent_avg, weight_recent)
+    adj_rate = defense_adjust(base_rate, opp_allowed, league_avg if league_avg > 0 else None)
 
-        if prop_type == "To Record a Point (Yes)":
+    if prop_type == "To Record a Point (Yes)":
+        # If line is 0.5, use P(≥1); otherwise use Poisson for ≥ ceil(line)
+        if float(line) <= 0.51:
             true_over = prob_point_yes(adj_rate)
         else:
             true_over = prob_count_over_poisson(adj_rate, line)
-        true_under = 1.0 - true_over
+    else:
+        # Goals / Assists / SOG already use the count model
+        true_over = prob_count_over_poisson(adj_rate, line)
+
+    true_under = 1.0 - true_over
+
+
+
 
         imp_over, imp_under = american_to_implied(odds_over), american_to_implied(odds_under)
         ev_over, ev_under = ev_percent(true_over, odds_over), ev_percent(true_under, odds_under)
