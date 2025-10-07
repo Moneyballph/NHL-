@@ -265,15 +265,34 @@ with tab_team:
         sims = 20000  # hidden default simulation count for Poisson model
 
 
-    with colR:
-        st.markdown("**Sportsbook Lines** (enter your current prices)")
-        ml_home = st.number_input("Moneyline — Home Team", value=0, step=1)
-        ml_away = st.number_input("Moneyline — Away Team", value=0, step=1)
-        pl_home = st.number_input("Puck Line Home -1.5 (odds)", value=0, step=1)
-        pl_away = st.number_input("Puck Line Away +1.5 (odds)", value=0, step=1)
-        total_line = st.number_input("Total (O/U) line", value=0.0, step=0.5)
-        ou_over = st.number_input("Over Odds", value=0, step=1, key="team_over_odds")
-        ou_under = st.number_input("Under Odds", value=0, step=1, key="team_under_odds")
+   with colR:
+    st.markdown("**Sportsbook Lines** (enter your current prices)")
+
+    ml_home = st.number_input(f"Moneyline — {home_team}", value=-135, step=1)
+    ml_away = st.number_input(f"Moneyline — {away_team}", value=+115, step=1)
+
+    # 🏒 Dynamic Puck Line favorite selection
+    favorite_team = st.selectbox(
+        "Which team is the favorite for the puck line?",
+        options=[home_team, away_team],
+        index=0,
+        help="This determines which side gets -1.5 and which gets +1.5."
+    )
+
+    if favorite_team == home_team:
+        pl_fav_label = f"Puck Line {home_team} -1.5 (odds)"
+        pl_dog_label = f"Puck Line {away_team} +1.5 (odds)"
+    else:
+        pl_fav_label = f"Puck Line {away_team} -1.5 (odds)"
+        pl_dog_label = f"Puck Line {home_team} +1.5 (odds)"
+
+    pl_fav_odds = st.number_input(pl_fav_label, value=+150, step=1)
+    pl_dog_odds = st.number_input(pl_dog_label, value=-170, step=1)
+
+    total_line = st.number_input("Total (O/U) line", value=6.5, step=0.5)
+    ou_over = st.number_input("Over Odds", value=+105, step=1)
+    ou_under = st.number_input("Under Odds", value=-125, step=1)
+
 
 
     run_team = st.button("Run Team Simulation")
