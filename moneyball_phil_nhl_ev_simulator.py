@@ -271,8 +271,9 @@ with tab_team:
         pl_home = st.number_input("Puck Line Home -1.5 (odds)", value=0, step=1)
         pl_away = st.number_input("Puck Line Away +1.5 (odds)", value=0, step=1)
         total_line = st.number_input("Total (O/U) line", value=0.0, step=0.5)
-        ou_over = st.number_input("Over Odds", value=0, step=1)
-        ou_under = st.number_input("Under Odds", value=0, step=1)
+        ou_over = st.number_input("Over Odds", value=0, step=1, key="team_over_odds")
+        ou_under = st.number_input("Under Odds", value=0, step=1, key="team_under_odds")
+
 
     run_team = st.button("Run Team Simulation")
 
@@ -385,9 +386,10 @@ with tab_player:
     with col2:
         opp_allowed = st.number_input("Opponent Allowed (per game for this stat)", value=0.0, step=0.05, min_value=0.0)
         league_avg = st.number_input("League Avg for this stat (optional)", value=0.0, step=0.05, min_value=0.0)
-        odds_over = st.number_input("Over Odds", value=0, step=1)
-        odds_under = st.number_input("Under Odds", value=0, step=1)
+        odds_over = st.number_input("Over Odds", value=0, step=1, key="player_over_odds")
+        odds_under = st.number_input("Under Odds", value=0, step=1, key="player_under_odds")
         sims_player = st.number_input("(Advanced) Simulations for count stats", value=0, step=1000, min_value=0)
+
 
     run_player = st.button("Compute Player Prop")
 
