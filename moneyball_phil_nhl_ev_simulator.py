@@ -254,7 +254,7 @@ tab_team, tab_player = st.tabs(["Team Bets", "Player Props"])
 with tab_team:
     st.subheader("Team Bets — Moneyline · Puck Line · Totals")
 
- colL, colR = st.columns(2)
+    colL, colR = st.columns(2)
 
 with colL:
     home_team = st.text_input("Home Team", value="")
