@@ -230,12 +230,14 @@ with tab_team:
         p_away = metrics["away_win"]
         p_over, p_under = metrics["over"], metrics["under"]
         # puck line mapped to labels
+        # puck line mapped to labels (favorite gets the -1.5 side)
         if fav_name == (home_team or "Home"):
-            p_fav_pl = metrics["home_cover_-1.5"]
-            p_dog_pl = metrics["away_cover_+1.5"]
-        else:
-            p_fav_pl = metrics["away_cover_+1.5"]
-            p_dog_pl = metrics["home_cover_-1.5"]
+           p_fav_pl = metrics["home_cover_-1.5"]
+           p_dog_pl = metrics["away_cover_+1.5"]
+       else:
+           p_fav_pl = metrics["away_cover_-1.5"]
+           p_dog_pl = metrics["home_cover_+1.5"]
+
 
         # Implied
         imp_home, imp_away = american_to_implied(ml_home), american_to_implied(ml_away)
