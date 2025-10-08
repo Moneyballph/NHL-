@@ -234,7 +234,7 @@ with tab_team:
         if fav_name == (home_team or "Home"):
            p_fav_pl = metrics["home_cover_-1.5"]
            p_dog_pl = metrics["away_cover_+1.5"]
-       else:
+        else:
            p_fav_pl = metrics["away_cover_-1.5"]
            p_dog_pl = metrics["home_cover_+1.5"]
 
