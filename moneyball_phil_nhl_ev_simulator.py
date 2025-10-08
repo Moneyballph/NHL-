@@ -81,7 +81,7 @@ def tier_badge_html_from_true(p: float) -> str:
 # --------------------------
 # Engines (Teams)
 # --------------------------
-def expected_goals_pair(xgf_home: float, xga_home: float, xgf_away: float, xga_away: float) -> Tuple[float,float]:
+def expected_goals_pair(xgf_home: float, xga_home: float, xgf_away: float, xga_away: float) -> Tuple[float, float]:
     lam_home = (float(xgf_home) + float(xga_away)) / 2.0
     lam_away = (float(xgf_away) + float(xga_home)) / 2.0
     return max(0.05, lam_home), max(0.05, lam_away)
@@ -96,10 +96,13 @@ def ml_pw_over_under_metrics(lam_home: float, lam_away: float, total_line: float
         "home_win": np.mean(hg > ag),
         "away_win": np.mean(ag > hg),
         "home_cover_-1.5": np.mean((hg - ag) >= 2),
+        "away_cover_-1.5": np.mean((ag - hg) >= 2),   # added key for away -1.5
+        "home_cover_+1.5": np.mean((hg - ag) > -2),   # added key for home +1.5
         "away_cover_+1.5": np.mean((ag - hg) > -2),
         "over": np.mean((hg + ag) > total_line),
         "under": np.mean((hg + ag) < total_line),
     }
+
 
 # --------------------------
 # Engines (Player Props)
