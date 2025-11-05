@@ -1,8 +1,8 @@
-# 🏒 Moneyball Phil — NHL EV Simulator (FINAL)
+# 🏒 Moneyball Phil — NHL EV Simulator (ADVANCED)
 # Tabs: Team Bets · Player Props · Boards/Parlay
-# Engines: Poisson (teams) + Poisson/Binomial (player props)
+# Engines: Poisson (teams, with overdispersion) + Poisson/Binomial (player props)
 # Visuals: Horizontal progress bars + colored tier badges by TRUE prob
-# Inputs: Blank by default. Keys added to prevent duplicate element errors.
+# Inputs: Pre-blended per-game xGF/xGA; advanced situational tweaks
 
 import math
 from typing import List, Dict, Tuple
@@ -38,6 +38,8 @@ def american_to_implied(odds: float) -> float:
         odds = float(odds)
     except Exception:
         return None
+    if odds == 0:
+        return None
     if odds >= 0:
         return 100.0 / (odds + 100.0)
     return abs(odds) / (abs(odds) + 100.0)
@@ -48,12 +50,21 @@ def american_to_decimal(odds: float) -> float:
 
 def decimal_to_american(dec: float) -> float:
     dec = float(dec)
-    if dec <= 1.0: return 0.0
-    if dec >= 2.0: return (dec - 1.0) * 100.0
+    if dec <= 1.0:
+        return 0.0
+    if dec >= 2.0:
+        return (dec - 1.0) * 100.0
     return -100.0 / (dec - 1.0)
 
-def ev_percent(true_prob: float, american_odds: float) -> float:
-    if true_prob is None or american_odds is None:
+def fair_american_from_true_prob(p: float) -> float | None:
+    """No-vig fair American odds from true probability."""
+    if p is None or p <= 0.0 or p >= 1.0:
+        return None
+    dec = 1.0 / float(p)
+    return decimal_to_american(dec)
+
+def ev_percent(true_prob: float, american_odds: float) -> float | None:
+    if true_prob is None or american_odds is None or american_odds == 0:
         return None
     p = max(0.0, min(1.0, float(true_prob)))
     o = float(american_odds)
@@ -67,42 +78,74 @@ def ev_percent_from_decimal(true_prob: float, dec_odds: float) -> float:
 
 # ----- Tier (by TRUE probability, not EV) -----
 def tier_from_true_prob(p: float) -> str:
-    if p is None: return "—"
-    if p > 0.80:  return "Elite"
-    if p >= 0.70: return "Strong"
-    if p >= 0.60: return "Moderate"
+    if p is None:
+        return "—"
+    if p > 0.80:
+        return "Elite"
+    if p >= 0.70:
+        return "Strong"
+    if p >= 0.60:
+        return "Moderate"
     return "Risky"
 
 def tier_badge_html_from_true(p: float) -> str:
     tier = tier_from_true_prob(p)
-    color = {"Elite":"#22c55e", "Strong":"#eab308", "Moderate":"#f97316", "Risky":"#ef4444"}.get(tier, "#9ca3af")
+    color = {"Elite": "#22c55e", "Strong": "#eab308", "Moderate": "#f97316", "Risky": "#ef4444"}.get(tier, "#9ca3af")
     return f'<span style="background:{color};color:#111;padding:2px 8px;border-radius:8px;font-weight:700">{tier}</span>'
 
 # --------------------------
 # Engines (Teams)
 # --------------------------
-def expected_goals_pair(xgf_home: float, xga_home: float, xgf_away: float, xga_away: float) -> Tuple[float, float]:
-    lam_home = (float(xgf_home) + float(xga_away)) / 2.0
-    lam_away = (float(xgf_away) + float(xga_home)) / 2.0
+def expected_goals_pair_adjusted(
+    xgf_home: float, xga_home: float,
+    xgf_away: float, xga_away: float,
+    mult_home: float, mult_away: float
+) -> Tuple[float, float]:
+    """
+    Apply situational multipliers to both xGF and xGA, then couple vs opponent.
+    """
+    xgf_h_adj = float(xgf_home) * float(mult_home)
+    xga_h_adj = float(xga_home) * float(mult_home)
+    xgf_a_adj = float(xgf_away) * float(mult_away)
+    xga_a_adj = float(xga_away) * float(mult_away)
+
+    lam_home = (xgf_h_adj + xga_a_adj) / 2.0
+    lam_away = (xgf_a_adj + xga_h_adj) / 2.0
     return max(0.05, lam_home), max(0.05, lam_away)
 
-def simulate_matchups(lam_home: float, lam_away: float, n: int = 10000, seed: int = 42):
+def simulate_matchups(lam_home: float, lam_away: float, n: int = 10000, seed: int = 42, sigma: float = 0.0):
+    """
+    Poisson simulations with optional overdispersion via lognormal multiplicative noise.
+    sigma=0 → standard Poisson. sigma>0 → lam*exp(N(0,sigma^2)).
+    """
     rng = np.random.default_rng(seed)
-    return rng.poisson(lam_home, size=n), rng.poisson(lam_away, size=n)
+    if sigma and sigma > 0.0:
+        mult_h = rng.lognormal(mean=0.0, sigma=float(sigma), size=n)
+        mult_a = rng.lognormal(mean=0.0, sigma=float(sigma), size=n)
+        lam_h_draws = np.clip(lam_home * mult_h, 0.01, None)
+        lam_a_draws = np.clip(lam_away * mult_a, 0.01, None)
+        hg = rng.poisson(lam_h_draws)
+        ag = rng.poisson(lam_a_draws)
+    else:
+        hg = rng.poisson(lam_home, size=n)
+        ag = rng.poisson(lam_away, size=n)
+    return hg, ag
 
-def ml_pw_over_under_metrics(lam_home: float, lam_away: float, total_line: float, n: int = 10000, seed: int = 42):
-    hg, ag = simulate_matchups(lam_home, lam_away, n=n, seed=seed)
+def ml_pw_over_under_metrics(
+    lam_home: float, lam_away: float, total_line: float,
+    n: int = 10000, seed: int = 42, sigma: float = 0.0
+):
+    hg, ag = simulate_matchups(lam_home, lam_away, n=n, seed=seed, sigma=sigma)
     return {
         "home_win": np.mean(hg > ag),
         "away_win": np.mean(ag > hg),
         "home_cover_-1.5": np.mean((hg - ag) >= 2),
-        "away_cover_-1.5": np.mean((ag - hg) >= 2),   # added key for away -1.5
-        "home_cover_+1.5": np.mean((hg - ag) > -2),   # added key for home +1.5
+        "away_cover_-1.5": np.mean((ag - hg) >= 2),
+        "home_cover_+1.5": np.mean((hg - ag) > -2),
         "away_cover_+1.5": np.mean((ag - hg) > -2),
         "over": np.mean((hg + ag) > total_line),
         "under": np.mean((hg + ag) < total_line),
     }
-
 
 # --------------------------
 # Engines (Player Props)
@@ -113,7 +156,8 @@ def weighted_rate(season_avg: float, recent_avg: float, weight_recent: float = 0
 
 def defense_adjust(rate: float, opp_allowed: float, league_avg: float = None) -> float:
     r = float(rate)
-    if opp_allowed is None: return max(0.0, r)
+    if opp_allowed is None:
+        return max(0.0, r)
     oa = max(0.0, float(opp_allowed))
     if league_avg and league_avg > 0:
         return max(0.0, r * (oa / float(league_avg)))
@@ -159,7 +203,8 @@ def add_leg_to_parlay(market: str, side: str, odds: float, true_p: float):
     })
 
 def parlay_metrics(legs: List[Dict]):
-    if not legs: return None
+    if not legs:
+        return None
     true_comb, dec_prod = 1.0, 1.0
     for lg in legs:
         true_comb *= max(0.0, min(1.0, float(lg["True"])))
@@ -186,16 +231,39 @@ tab_team, tab_player = st.tabs(["Team Bets", "Player Props"])
 with tab_team:
     st.subheader("Team Bets — Moneyline · Puck Line · Totals")
 
+    # ---------- Inputs (left): pre-blended base xGF/xGA ----------
     colL, colR = st.columns(2)
     with colL:
         home_team = st.text_input("Home Team", value="", key="team_home")
         away_team = st.text_input("Away Team", value="", key="team_away")
-        xgf_home = st.number_input("Home xGF (per game)", value=0.0, step=0.1, min_value=0.0, key="xgf_home")
-        xga_home = st.number_input("Home xGA (per game)", value=0.0, step=0.1, min_value=0.0, key="xga_home")
-        xgf_away = st.number_input("Away xGF (per game)", value=0.0, step=0.1, min_value=0.0, key="xgf_away")
-        xga_away = st.number_input("Away xGA (per game)", value=0.0, step=0.1, min_value=0.0, key="xga_away")
-        sims = 20000  # hidden default
 
+        st.markdown("**Base Rates (per game, pre-blended)**")
+        xgf_home = st.number_input("Home xGF (pg)", value=0.0, step=0.01, min_value=0.0, key="xgf_home")
+        xga_home = st.number_input("Home xGA (pg)", value=0.0, step=0.01, min_value=0.0, key="xga_home")
+        xgf_away = st.number_input("Away xGF (pg)", value=0.0, step=0.01, min_value=0.0, key="xgf_away")
+        xga_away = st.number_input("Away xGA (pg)", value=0.0, step=0.01, min_value=0.0, key="xga_away")
+
+        st.markdown("**Advanced Adjustments (percent, stack additively)**")
+        l5_h   = st.number_input("Home Last-5 adj %", value=0.0, step=0.5, key="l5_home")
+        arena_h= st.number_input("Home arena adj %", value=3.0, step=0.5, key="arena_home")
+        gol_h  = st.number_input("Home goalie adj %", value=0.0, step=0.5, key="goalie_home")
+        inj_h  = st.number_input("Home injury adj %", value=0.0, step=0.5, key="inj_home")
+        pp_h   = st.number_input("Home PP/PK matchup adj %", value=0.0, step=0.5, key="pp_home")
+        b2b_h_on = st.checkbox("Home on back-to-back?", key="b2b_home")
+        b2b_h = st.number_input("Home B2B adj % (applies if checked)", value=-2.0, step=0.5, key="b2b_home_val")
+
+        l5_a   = st.number_input("Away Last-5 adj %", value=0.0, step=0.5, key="l5_away")
+        arena_a= st.number_input("Away arena adj %", value=-3.0, step=0.5, key="arena_away")
+        gol_a  = st.number_input("Away goalie adj %", value=0.0, step=0.5, key="goalie_away")
+        inj_a  = st.number_input("Away injury adj %", value=0.0, step=0.5, key="inj_away")
+        pp_a   = st.number_input("Away PP/PK matchup adj %", value=0.0, step=0.5, key="pp_away")
+        b2b_a_on = st.checkbox("Away on back-to-back?", key="b2b_away")
+        b2b_a = st.number_input("Away B2B adj % (applies if checked)", value=-2.0, step=0.5, key="b2b_away_val")
+
+        sigma = st.number_input("Volatility sigma (0–0.6 typical)", value=0.28, step=0.01, min_value=0.0, key="sigma")
+        sims = 20000  # fixed high-fidelity default
+
+    # ---------- Inputs (right): Sportsbook ----------
     with colR:
         st.markdown("**Sportsbook Lines** (enter your current prices)")
         ml_home = st.number_input(f"Moneyline — {home_team or 'Home Team'}", value=0, step=1, key="ml_home")
@@ -224,23 +292,30 @@ with tab_team:
 
     run_team = st.button("🔮 Run Team Projection", key="run_team")
     if run_team:
+        # --- multipliers (stack percentages, then apply once)
+        pct_home = l5_h + arena_h + gol_h + inj_h + pp_h + (b2b_h if b2b_h_on else 0.0)
+        pct_away = l5_a + arena_a + gol_a + inj_a + pp_a + (b2b_a if b2b_a_on else 0.0)
+        mult_home = 1.0 + (pct_home / 100.0)
+        mult_away = 1.0 + (pct_away / 100.0)
+
         # --- projections
-        lam_h, lam_a = expected_goals_pair(xgf_home, xga_home, xgf_away, xga_away)
-        metrics = ml_pw_over_under_metrics(lam_h, lam_a, total_line, n=int(sims))
+        lam_h, lam_a = expected_goals_pair_adjusted(
+            xgf_home, xga_home, xgf_away, xga_away, mult_home, mult_away
+        )
+        metrics = ml_pw_over_under_metrics(lam_h, lam_a, total_line, n=int(sims), sigma=float(sigma))
 
         # True probs
         p_home = metrics["home_win"]
         p_away = metrics["away_win"]
         p_over, p_under = metrics["over"], metrics["under"]
-        # puck line mapped to labels
-        # puck line mapped to labels (favorite gets the -1.5 side)
-        if fav_name == (home_team or "Home"):
-           p_fav_pl = metrics["home_cover_-1.5"]
-           p_dog_pl = metrics["away_cover_+1.5"]
-        else:
-           p_fav_pl = metrics["away_cover_-1.5"]
-           p_dog_pl = metrics["home_cover_+1.5"]
 
+        # Puck line truths (favorite gets the -1.5 side)
+        if fav_name == (home_team or "Home"):
+            p_fav_pl = metrics["home_cover_-1.5"]
+            p_dog_pl = metrics["away_cover_+1.5"]
+        else:
+            p_fav_pl = metrics["away_cover_-1.5"]
+            p_dog_pl = metrics["home_cover_+1.5"]
 
         # Implied
         imp_home, imp_away = american_to_implied(ml_home), american_to_implied(ml_away)
@@ -252,7 +327,15 @@ with tab_team:
         ev_favpl, ev_dogpl = ev_percent(p_fav_pl, pl_fav), ev_percent(p_dog_pl, pl_dog)
         ev_overv, ev_underv = ev_percent(p_over, ou_over), ev_percent(p_under, ou_under)
 
-        # --- projected goals/total/margin (shown like ATS module)
+        # Fair odds (no vig)
+        fair_ml_home = fair_american_from_true_prob(p_home)
+        fair_ml_away = fair_american_from_true_prob(p_away)
+        fair_over = fair_american_from_true_prob(p_over)
+        fair_under = fair_american_from_true_prob(p_under)
+        fair_pl_fav = fair_american_from_true_prob(p_fav_pl)
+        fair_pl_dog = fair_american_from_true_prob(p_dog_pl)
+
+        # --- projected goals/total/margin headline
         proj_home, proj_away = lam_h, lam_a
         proj_total, proj_margin = proj_home + proj_away, proj_home - proj_away
         st.subheader("Projected Game Outcome")
@@ -262,25 +345,31 @@ with tab_team:
             f"**Projected Total:** {proj_total:.2f}  |  "
             f"**Projected Margin:** {proj_margin:.2f}"
         )
+        st.caption(
+            f"Advanced adj % — Home: {pct_home:+.1f}% (×{mult_home:.3f}) | "
+            f"Away: {pct_away:+.1f}% (×{mult_away:.3f}) • Sigma: {sigma:.2f} • Sims: {sims}"
+        )
 
         # --- inline summaries (ranked by TRUE%)
         inline = [
-            (f"ML — {home_team or 'Home'}", p_home, imp_home, ev_home, ("ML", ml_home)),
-            (f"ML — {away_team or 'Away'}", p_away, imp_away, ev_away, ("ML", ml_away)),
-            (pl_fav_label.replace(" (odds)", ""), p_fav_pl, imp_favpl, ev_favpl, ("PL", pl_fav)),
-            (pl_dog_label.replace(" (odds)", ""), p_dog_pl, imp_dogpl, ev_dogpl, ("PL", pl_dog)),
-            (f"Over {total_line}", p_over, imp_over, ev_overv, ("Over", ou_over)),
-            (f"Under {total_line}", p_under, imp_under, ev_underv, ("Under", ou_under)),
+            (f"ML — {home_team or 'Home'}", p_home, imp_home, ev_home, ("ML", ml_home), fair_ml_home),
+            (f"ML — {away_team or 'Away'}", p_away, imp_away, ev_away, ("ML", ml_away), fair_ml_away),
+            (pl_fav_label.replace(" (odds)", ""), p_fav_pl, imp_favpl, ev_favpl, ("PL", pl_fav), fair_pl_fav),
+            (pl_dog_label.replace(" (odds)", ""), p_dog_pl, imp_dogpl, ev_dogpl, ("PL", pl_dog), fair_pl_dog),
+            (f"Over {total_line}", p_over, imp_over, ev_overv, ("Over", ou_over), fair_over),
+            (f"Under {total_line}", p_under, imp_under, ev_underv, ("Under", ou_under), fair_under),
         ]
         inline.sort(key=lambda t: (t[1] if t[1] is not None else 0.0), reverse=True)
 
         st.subheader("Inline Results (ranked by True %)")
-        for label, tp, ip, evv, (side_tag, odds_val) in inline:
+        for label, tp, ip, evv, (side_tag, odds_val), fair_odds in inline:
             badge = tier_badge_html_from_true(tp)
             ip_pct = (ip * 100.0) if ip is not None else None
+            fair_txt = f" | Fair **{fair_odds:.0f}**" if fair_odds is not None else ""
             st.markdown(
                 f"🔹 **{label}** → True **{tp*100:.2f}%** | "
-                f"Implied **{ip_pct:.2f}%** | EV **{(evv if evv is not None else 0.0):.2f}%** {badge}",
+                f"Implied **{(ip_pct if ip_pct is not None else 0):.2f}%** | "
+                f"EV **{(evv if evv is not None else 0.0):.2f}%**{fair_txt} {badge}",
                 unsafe_allow_html=True
             )
             st.progress(tp, text=f"True: {tp*100:.2f}%")
@@ -288,28 +377,29 @@ with tab_team:
                 st.progress(ip, text=f"Implied: {ip*100:.2f}%")
 
         # --- table with colored Tier column (HTML)
-        def _row(market, tp, ip, evv):
+        def _row(market, tp, ip, evv, fair_val):
             return {
                 "Market": market,
                 "True %": round(tp * 100, 2),
                 "Implied %": round(ip * 100, 2) if ip is not None else None,
                 "EV %": round(evv, 2) if evv is not None else None,
+                "Fair (Am)": round(fair_val, 0) if fair_val is not None else None,
                 "Tier": tier_badge_html_from_true(tp)
             }
 
         table_rows = [
-            _row(f"ML — {home_team or 'Home'}", p_home, imp_home, ev_home),
-            _row(f"ML — {away_team or 'Away'}", p_away, imp_away, ev_away),
-            _row(pl_fav_label.replace(" (odds)", ""), p_fav_pl, imp_favpl, ev_favpl),
-            _row(pl_dog_label.replace(" (odds)", ""), p_dog_pl, imp_dogpl, ev_dogpl),
-            _row(f"Over {total_line}", p_over, imp_over, ev_overv),
-            _row(f"Under {total_line}", p_under, imp_under, ev_underv),
+            _row(f"ML — {home_team or 'Home'}", p_home, imp_home, ev_home, fair_ml_home),
+            _row(f"ML — {away_team or 'Away'}", p_away, imp_away, ev_away, fair_ml_away),
+            _row(pl_fav_label.replace(" (odds)", ""), p_fav_pl, imp_favpl, ev_favpl, fair_pl_fav),
+            _row(pl_dog_label.replace(" (odds)", ""), p_dog_pl, imp_dogpl, ev_dogpl, fair_pl_dog),
+            _row(f"Over {total_line}", p_over, imp_over, ev_overv, fair_over),
+            _row(f"Under {total_line}", p_under, imp_under, ev_underv, fair_under),
         ]
         df_team = pd.DataFrame(table_rows).sort_values("True %", ascending=False).reset_index(drop=True)
         st.subheader("Bet Results (sorted by True %)")
         st.write(df_team.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # --- Add to Board / Parlay quick actions
+        # --- Quick Actions
         st.markdown("**Quick Actions**")
         ca1, ca2, ca3 = st.columns(3)
         with ca1:
@@ -371,45 +461,57 @@ with tab_player:
         base_rate = weighted_rate(season_avg, recent_avg, weight_recent)
         adj_rate = defense_adjust(base_rate, opp_allowed, league_avg if league_avg > 0 else None)
 
+        # Compute True probabilities
         if prop_type == "To Record a Point (Yes)":
-            # If line is 0.5, use P(≥1); otherwise use Poisson for ≥ ceil(line)
             if float(line) <= 0.51:
                 true_over = prob_point_yes(adj_rate)
             else:
                 true_over = prob_count_over_poisson(adj_rate, line)
         else:
-            # Goals / Assists / SOG already use the count model
             true_over = prob_count_over_poisson(adj_rate, line)
-
         true_under = 1.0 - true_over
 
-
-
+        # Implied / EV
         imp_over, imp_under = american_to_implied(odds_over), american_to_implied(odds_under)
         ev_over, ev_under = ev_percent(true_over, odds_over), ev_percent(true_under, odds_under)
 
-        # Projection headline (like ATS module)
+        # Fair odds (no vig)
+        fair_over = fair_american_from_true_prob(true_over)
+        fair_under = fair_american_from_true_prob(true_under)
+
+        # Projection headline (clear projection label)
         st.subheader("Projected Player Rate")
         st.markdown(
             f"**Weighted Rate (season/recent):** {base_rate:.3f}  |  "
-            f"**Defense-adjusted Rate:** {adj_rate:.3f}  |  "
+            f"**Defense-adjusted Rate (Projected):** {adj_rate:.3f}  |  "
             f"**Prop Line:** {line:.1f}"
         )
+        # Explicit projected label per prop
+        if "Shots" in prop_type:
+            st.markdown(f"**Projected Shots on Goal:** {adj_rate:.2f}")
+        elif "Goals" in prop_type:
+            st.markdown(f"**Projected Goals:** {adj_rate:.2f}")
+        elif "Assists" in prop_type:
+            st.markdown(f"**Projected Assists:** {adj_rate:.2f}")
+        elif "Point" in prop_type:
+            st.markdown(f"**Projected Points/Game:** {adj_rate:.2f}")
 
         # Inline (ranked by TRUE)
         inline_pp = [
-            (f"{player_name} — {prop_type}", "Over/Yes", true_over, imp_over, ev_over, odds_over),
-            (f"{player_name} — {prop_type}", "Under/No", true_under, imp_under, ev_under, odds_under),
+            (f"{player_name} — {prop_type}", "Over/Yes", true_over, imp_over, ev_over, odds_over, fair_over),
+            (f"{player_name} — {prop_type}", "Under/No", true_under, imp_under, ev_under, odds_under, fair_under),
         ]
         inline_pp.sort(key=lambda t: (t[2] if t[2] is not None else 0.0), reverse=True)
 
         st.subheader("Inline Results (ranked by True %)")
-        for label, side, tp, ip, evv, odds_val in inline_pp:
+        for label, side, tp, ip, evv, odds_val, fair_odds in inline_pp:
             badge = tier_badge_html_from_true(tp)
             ip_pct = (ip * 100.0) if ip is not None else None
+            fair_txt = f" | Fair **{fair_odds:.0f}**" if fair_odds is not None else ""
             st.markdown(
                 f"🔹 **{label} — {side}** → True **{tp*100:.2f}%** | "
-                f"Implied **{ip_pct:.2f}%** | EV **{(evv if evv is not None else 0.0):.2f}%** {badge}",
+                f"Implied **{(ip_pct if ip_pct is not None else 0):.2f}%** | "
+                f"EV **{(evv if evv is not None else 0.0):.2f}%**{fair_txt} {badge}",
                 unsafe_allow_html=True
             )
             st.progress(tp, text=f"True: {tp*100:.2f}%")
@@ -424,6 +526,7 @@ with tab_player:
                 "True %": round(true_over * 100, 2),
                 "Implied %": round(imp_over * 100, 2) if imp_over is not None else None,
                 "EV %": round(ev_over, 2) if ev_over is not None else None,
+                "Fair (Am)": round(fair_over, 0) if fair_over is not None else None,
                 "Tier": tier_badge_html_from_true(true_over)
             },
             {
@@ -432,6 +535,7 @@ with tab_player:
                 "True %": round(true_under * 100, 2),
                 "Implied %": round(imp_under * 100, 2) if imp_under is not None else None,
                 "EV %": round(ev_under, 2) if ev_under is not None else None,
+                "Fair (Am)": round(fair_under, 0) if fair_under is not None else None,
                 "Tier": tier_badge_html_from_true(true_under)
             },
         ]).sort_values("True %", ascending=False).reset_index(drop=True)
@@ -515,4 +619,5 @@ if st.session_state["parlay_board"]:
         st.session_state["parlay_board"] = []
 else:
     st.caption("No parlays saved yet.")
+
 
